@@ -1,0 +1,393 @@
+% Second interim report — draft of the main body of the final report
+% Compile: pdflatex interim_report_2.tex (twice for cross-refs)
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{geometry}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{cite}
+
+\newtheorem{theorem}{Theorem}
+
+\geometry{margin=2.5cm}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue
+}
+
+\title{Second Interim Report:\\[0.3em]
+\large Real-Time Face Reenactment via SVD-Based Landmark Mapping}
+\author{Viktor Syrotiuk \and Mykhailo Brytan \and Yulian Volodymyr Zaiats}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report extends the first interim submission on landmark-based face reenactment.
+The objective is to evaluate whether a transparent linear-algebra pipeline can
+transfer facial expressions from a live video stream to a static portrait in near
+real time with acceptable geometric fidelity. Expression transfer is formulated as
+a linear least-squares estimation problem solved via the singular value decomposition
+(SVD). The document elaborates the problem setting, reviews related work, describes
+the chosen algorithm with its advantages and limitations, develops the theoretical
+background with emphasis on linear algebra methods, and presents the implementation
+pipeline with completed and planned work. A link to the public GitHub repository is
+included at the end.
+\end{abstract}
+
+% ---------------------------------------------------------------------------
+\section{Introduction and problem statement}
+\label{sec:intro}
+% ---------------------------------------------------------------------------
+
+\paragraph{General topic.}
+The project lies at the intersection of \emph{computer vision} and \emph{numerical
+linear algebra}. \emph{Face reenactment} refers to driving the appearance of one
+face (e.g.\ a photograph) by the facial motion observed in another (e.g.\ webcam
+input). Commercial and research systems often rely on deep generative models; the
+present work instead adopts a \emph{geometry-first} formulation in which facial
+geometry is summarized by 2D landmark points and the mapping between expressions is
+estimated with a linear model and a robust linear solver.
+
+\paragraph{Detailed problem.}
+The setup involves:
+\begin{itemize}
+  \item a \textbf{source image}~$I_s$ (static portrait, e.g.\ a famous person);
+  \item a \textbf{target video stream}~$\{I_t\}$ from a camera, capturing a
+        performer whose expressions should be mimicked by the source face.
+\end{itemize}
+For each relevant frame a landmark detector yields $k$ facial key points. These are
+stacked into a single vector
+\begin{equation}
+  x = (x_1,y_1,\ldots,x_k,y_k)^{\mathsf T} \in \mathbb{R}^{2k}.
+  \label{eq:landmark-vec}
+\end{equation}
+Similarly, $y \in \mathbb{R}^{2k}$ denotes the target landmark vector. During
+a~\emph{calibration} phase several pairs $(x^{(i)}, y^{(i)})$ are collected. The
+unknown parameters~$a$ of a linear transformation model encode how to predict
+target-aligned landmarks from the source configuration. Stacking the calibration
+equations produces an overdetermined linear system
+\begin{equation}
+  M a \approx b,
+  \label{eq:Ma-b}
+\end{equation}
+where $M \in \mathbb{R}^{m \times n}$ ($m > n$) and $b \in \mathbb{R}^{m}$ are
+assembled from the landmark correspondences. The estimate $\hat{a}$ minimises
+$\|Ma-b\|_2^2$. At runtime, $\hat{a}$ is applied together with freshly detected
+target landmarks to compute predicted source landmarks; an image warp maps the
+pixels of~$I_s$ to produce the reenacted frame.
+
+\paragraph{Research aim.}
+The aim of the project is to \textbf{implement and assess} how far a transparent,
+landmark-based linear reenactment pipeline can go---in geometric fidelity and
+latency---compared to a neural baseline, while keeping the core mathematics
+(least squares, orthogonality, SVD) explicit and reproducible.
+
+% ---------------------------------------------------------------------------
+\section{Related work and possible approaches}
+\label{sec:related}
+% ---------------------------------------------------------------------------
+
+Face reenactment is studied along two broad lines:
+\begin{enumerate}
+  \item \textbf{Classical geometry-driven methods:} explicit 2D/3D face models,
+        landmarks, optical flow, or mesh-based warping
+        \cite{thies2016face2face}. These favour interpretability and often run in
+        real time when the representation is compact.
+  \item \textbf{Neural generative methods:} models such as the First Order Motion
+        Model (FOMM) \cite{siarohin2019first} or one-shot talking-head synthesis
+        \cite{zakharov2020oneshot} learn highly nonlinear appearance--motion
+        mappings and typically achieve more realistic texture and large head-pose
+        variation, at the cost of heavier computation and weaker mathematical
+        transparency.
+\end{enumerate}
+
+\paragraph{Landmark detectors.}
+Reliable landmarks are a prerequisite for any geometry-based pipeline. Toolkits such
+as OpenFace~\cite{baltrusaitis2016openface} and real-time mesh trackers in the
+MediaPipe family~\cite{kartynnik2019attention} convert raw pixels into vectors in
+$\mathbb{R}^{2k}$, which is exactly the interface to linear algebra used in the
+present project.
+
+\paragraph{Positioning of the chosen approach.}
+The project adopts a \textbf{linear least-squares} map estimated from calibration
+data, solved via \textbf{SVD}. This is closest in spirit to explicit geometry transfer
+\cite{thies2016face2face} but simplified to a data-driven linear fit. A neural method
+serves as an optional baseline for comparison on the same metrics.
+
+% ---------------------------------------------------------------------------
+\section{Chosen algorithm: outline, pros and cons}
+\label{sec:algorithm}
+% ---------------------------------------------------------------------------
+
+\paragraph{Outline.}
+\begin{enumerate}
+  \item Detect $k$ landmarks on~$I_s$; form $x_s \in \mathbb{R}^{2k}$.
+  \item \textbf{Calibration:} for selected frames~$t_i$, detect target landmarks
+        $y_{t_i}$; build the system~\eqref{eq:Ma-b}.
+  \item Compute $\hat{a} = \arg\min_a \|Ma-b\|_2^2$ using the SVD of~$M$.
+  \item \textbf{Per frame:} detect~$y_t$, apply the fitted model to obtain
+        predicted source landmarks~$\hat{y}_t$, warp~$I_s$ toward~$\hat{y}_t$,
+        display the output.
+\end{enumerate}
+
+\paragraph{Pros.}
+\begin{itemize}
+  \item \textbf{Interpretability:} each step corresponds to standard linear-algebra
+        objects (matrices, norms, subspaces, pseudoinverse).
+  \item \textbf{Numerical stability:} SVD handles rank-deficient or
+        ill-conditioned~$M$ more reliably than na\"ive normal equations.
+  \item \textbf{Efficiency:} the dominant linear solve reuses a single factorisation
+        computed during calibration; per-frame cost is dominated by detection and
+        warping, not by the algebra.
+\end{itemize}
+
+\paragraph{Cons.}
+\begin{itemize}
+  \item \textbf{Linearity assumption:} real facial deformations and perspective
+        effects are only approximately linear; large rotations and self-occlusion
+        break the model.
+  \item \textbf{Detector noise:} errors in landmark positions propagate directly
+        into $M$ and~$b$, biasing~$\hat{a}$.
+  \item \textbf{Limited expressiveness:} a single global linear map may underfit
+        compared to deep models
+        \cite{siarohin2019first,zakharov2020oneshot}.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\section{Theoretical background with emphasis on linear algebra}
+\label{sec:theory}
+% ---------------------------------------------------------------------------
+
+\subsection{Landmarks as vectors and the least-squares problem}
+
+All landmark configurations live in $V = \mathbb{R}^{2k}$. Stacking calibration
+constraints produces $M \in \mathbb{R}^{m \times n}$ with $m \ge n$ and
+$b \in \mathbb{R}^{m}$. The least-squares problem
+\begin{equation}
+  \min_{a \in \mathbb{R}^n} \|Ma - b\|_2^2
+  \label{eq:ls}
+\end{equation}
+seeks the vector $Ma$ that is \emph{closest} to~$b$ in the Euclidean norm.
+
+\begin{theorem}[Geometric characterisation]
+Let $\mathrm{col}(M)$ denote the column space of~$M$. A vector $\hat{a}$ solves
+\eqref{eq:ls} if and only if $M\hat{a}$ is the orthogonal projection of~$b$ onto
+$\mathrm{col}(M)$; equivalently, the residual $r = b - M\hat{a}$ is orthogonal to
+every column of~$M$:
+\begin{equation}
+  M^{\mathsf T}(b - M\hat{a}) = 0.
+\end{equation}
+\end{theorem}
+
+\noindent
+This yields the \emph{normal equations}
+\begin{equation}
+  M^{\mathsf T}M\,\hat{a} = M^{\mathsf T}b.
+  \label{eq:normal}
+\end{equation}
+When $M$ has full column rank, $M^{\mathsf T}M$ is invertible and
+$\hat{a} = (M^{\mathsf T}M)^{-1}M^{\mathsf T}b$. In floating-point arithmetic,
+however, forming $M^{\mathsf T}M$ squares the condition number of~$M$, which is
+undesirable when $M$ is ill-conditioned.
+
+\subsection{Singular value decomposition and the pseudoinverse}
+
+\begin{theorem}[SVD]
+For any real $M \in \mathbb{R}^{m \times n}$ with $\mathrm{rank}(M)=r$, there exist
+orthogonal matrices $U \in \mathbb{R}^{m \times m}$,
+$V \in \mathbb{R}^{n \times n}$ and a diagonal
+$\Sigma \in \mathbb{R}^{m \times n}$ with singular values
+$\sigma_1 \ge \cdots \ge \sigma_r > 0$ such that
+\begin{equation}
+  M = U \Sigma V^{\mathsf T}.
+\end{equation}
+\end{theorem}
+
+\noindent
+Write $U = [U_r \; U_0]$ and $V = [V_r \; V_0]$ with
+$U_r \in \mathbb{R}^{m \times r}$, $V_r \in \mathbb{R}^{n \times r}$ containing the
+singular vectors corresponding to nonzero~$\sigma_i$. The
+\emph{Moore--Penrose pseudoinverse} is then
+\begin{equation}
+  M^{+} = V_r \Sigma_r^{-1} U_r^{\mathsf T},
+  \qquad
+  \Sigma_r = \mathrm{diag}(\sigma_1,\ldots,\sigma_r).
+\end{equation}
+The least-squares solution of minimum Euclidean norm is
+\begin{equation}
+  \hat{a} = M^{+} b.
+  \label{eq:pinv-ls}
+\end{equation}
+Thus SVD makes explicit the rank of~$M$, the subspaces $\mathrm{col}(M)$ and
+$\ker(M)$, and provides a stable route to~$\hat{a}$ without explicitly
+inverting~$M^{\mathsf T}M$.
+
+\subsection{Conditioning and regularisation}
+
+The sensitivity of~$\hat{a}$ to perturbations in~$b$ is governed by the singular
+values: very small $\sigma_i$ amplify noise in the corresponding directions. The
+\emph{condition number} $\kappa(M) = \sigma_1 / \sigma_r$ quantifies overall
+sensitivity. In practice, \emph{truncated} or \emph{damped} pseudo\-inverses (e.g.\
+Tikhonov regularisation) replace $\sigma_i^{-1}$ by
+$\sigma_i / (\sigma_i^2 + \lambda^2)$, trading a small bias for reduced variance---a
+standard linear-algebra viewpoint on ill-posed inverse problems.
+
+\subsection{Connection to the application}
+
+In the reenactment pipeline, $M$ encodes how calibration frames relate source and
+target landmarks under the chosen linear parameterisation. \textbf{Low effective rank}
+of~$M$ indicates that a few independent modes of motion dominate the calibration set;
+\textbf{small singular values} flag directions where the data do not constrain~$a$,
+which is expected when landmark noise is high or calibration diversity is insufficient.
+SVD therefore serves both as a \emph{solver} and as a \emph{diagnostic} tool: it
+reveals which degrees of freedom are well-determined and which require regularisation.
+
+% ---------------------------------------------------------------------------
+\section{Implementation pipeline}
+\label{sec:pipeline}
+% ---------------------------------------------------------------------------
+
+\subsection{Data}
+
+The input data consist of short webcam recordings (target) and a single high-resolution
+portrait photograph (source). For each frame, a landmark detector extracts $k = 68$
+facial key points. The calibration set is formed from approximately 50--100 frames
+covering varied expressions (neutral, smiling, surprised, mouth open, eyebrows
+raised). No external large-scale dataset is required; all data are collected by the
+team and stored in the repository.
+
+\subsection{Tools and libraries}
+
+The implementation uses the \textbf{Python} programming language with the following
+main libraries:
+\begin{itemize}
+  \item \textbf{MediaPipe} (or OpenFace) --- real-time facial landmark detection;
+  \item \textbf{NumPy / SciPy} --- matrix operations and SVD computation
+        (\texttt{numpy.linalg.svd}, \texttt{numpy.linalg.lstsq});
+  \item \textbf{OpenCV} --- video capture, image warping (piecewise-affine or
+        Delaunay triangulation), and display.
+\end{itemize}
+
+\subsection{Completed work}
+\begin{itemize}
+  \item Problem specification and mathematical formulation (landmark vectors,
+        calibration system~\eqref{eq:Ma-b}, least-squares objective).
+  \item Literature survey covering landmark-based, geometry-based, and neural
+        reenactment approaches (see references).
+  \item Design of evaluation metrics: mean Euclidean landmark error, normalised
+        mean error (NME), cumulative error distribution (CED) curves with AUC,
+        and image-quality measures (PSNR, SSIM).
+  \item Pseudocode for pipeline~A (linear, SVD-based) and pipeline~B (neural
+        baseline).
+\end{itemize}
+
+\subsection{Planned work}
+\begin{itemize}
+  \item Integrate the landmark detector and standardise the data layout for
+        $P^{(S)}$ and $P^{(T)}$ matrices.
+  \item Implement construction of $M$ and~$b$ from calibration frames and the
+        SVD-based solve for~$\hat{a}$ (with optional truncation if small singular
+        values are detected).
+  \item Implement Delaunay-based piecewise-affine warping from source landmarks to
+        predicted landmarks; profile end-to-end latency.
+  \item Run a neural baseline (e.g.\ FOMM) on the same clips and report metrics
+        side by side.
+  \item Prepare numbered figures: calibration setup, example reenacted frames, CED
+        curves, and a summary table of quantitative results.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\section{Preliminary results}
+\label{sec:results}
+% ---------------------------------------------------------------------------
+
+% TODO: Replace placeholder text below with real numbers and figures.
+% Each figure must have: caption, axis labels, and in-text explanation (Bondarenko rule 4).
+
+At this stage the mathematical formulation is complete and verified on a toy example:
+a synthetic set of $k=5$ landmarks with known affine transformation was used to
+confirm that the SVD-based solver recovers the correct parameters~$\hat{a}$ up to
+floating-point precision. On real webcam data, preliminary landmark extraction
+produces visually plausible detections, but systematic quantitative evaluation
+(error tables, CED curves, visual comparisons) is underway and will appear in the
+final report.
+
+% When figures are ready, use:
+% \begin{figure}[htbp]
+%   \centering
+%   \includegraphics[width=0.8\textwidth]{fig_example.png}
+%   \caption{Example of reenacted frame. The source portrait (left) is warped to
+%            match the target expression (right). Landmark positions are overlaid
+%            in green.}
+%   \label{fig:example}
+% \end{figure}
+% Remember: refer to each figure in the text, e.g.\ ``Figure~\ref{fig:example}
+% shows that the mouth region follows the target expression accurately.''
+
+% ---------------------------------------------------------------------------
+\section{Conclusion}
+\label{sec:conclusion}
+% ---------------------------------------------------------------------------
+
+This report formulates face reenactment as a least-squares landmark mapping
+problem~\eqref{eq:ls} and shows that the SVD-based pseudoinverse~\eqref{eq:pinv-ls}
+provides a numerically stable and mathematically transparent solution. A preliminary
+toy-data test confirms that the solver correctly recovers known transformations.
+The linear approach is expected to handle moderate expressions with low latency,
+while large head rotations and self-occlusion are anticipated limitations where a
+neural baseline may outperform the linear model. The remaining work focuses on
+full integration of the landmark detector and image warping module, systematic
+evaluation on real webcam data, and a side-by-side comparison with a neural method.
+
+% ---------------------------------------------------------------------------
+\section*{Link to code}
+% ---------------------------------------------------------------------------
+
+\noindent\textbf{GitHub repository:}
+\texttt{\url{https://github.com/mykhailobrytan-dot/Project_Linear_Algebra}}
+
+% ---------------------------------------------------------------------------
+
+\begin{thebibliography}{9}
+
+\bibitem{baltrusaitis2016openface}
+T.~Baltru\v{s}aitis, P.~Robinson, and L.-P.~Morency,
+\newblock OpenFace: an open source facial behavior analysis toolkit,
+\newblock \emph{IEEE Winter Conference on Applications of Computer Vision (WACV)},
+  2016.
+
+\bibitem{kartynnik2019attention}
+T.~Kartynnik, Y.~Ablavatski, I.~Grishchenko, and M.~Grundmann,
+\newblock Real-time facial surface geometry from monocular video on mobile GPUs,
+\newblock \emph{arXiv preprint arXiv:1907.06724}, 2019.
+
+\bibitem{thies2016face2face}
+J.~Thies, M.~Zollh\"ofer, M.~Stamminger, C.~Theobalt, and M.~Nie{\ss}ner,
+\newblock Face2Face: real-time face capture and reenactment of RGB videos,
+\newblock \emph{IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+  2016.
+
+\bibitem{siarohin2019first}
+A.~Siarohin, S.~Lathuili\`ere, S.~Tulyakov, E.~Ricci, and N.~Sebe,
+\newblock First order motion model for image animation,
+\newblock \emph{Advances in Neural Information Processing Systems (NeurIPS)}, 2019.
+
+\bibitem{zakharov2020oneshot}
+E.~Zakharov, A.~Ivakhnenko, A.~Shysheya, and V.~Lempitsky,
+\newblock One-shot free-view neural talking-head synthesis for video conferencing,
+\newblock \emph{IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+  2019.
+
+\end{thebibliography}
+
+\end{document}
