@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-# """
-# Real-Time Face Reenactment via SVD-Based Landmark Mapping
-
-# Mathematical pipeline
-# ─────────────────────
-# 1.  Detect k facial landmarks on a source portrait  →  x_s ∈ R^{2k}
-# 2.  Calibration: detect target neutral landmarks    →  y_0 ∈ R^{2k}
-#     Build overdetermined system  M a ≈ b   (M ∈ R^{2k×6}, a ∈ R^6)
-#     Solve via SVD:  â = V Σ⁺ Uᵀ b
-# 3.  Per frame: detect target landmarks y_t,
-#     transfer expression:  x_new = x_s + A·(y_t − y_0),
-#     warp source image from x_s → x_new, display result.
-
-# Usage
-# ─────
-#     python reenact.py --source portrait.jpg
-#     python reenact.py --test                    # synthetic SVD verification
-# """
 
 import argparse
 import os

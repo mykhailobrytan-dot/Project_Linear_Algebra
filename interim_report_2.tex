@@ -1,5 +1,3 @@
-% Second interim report — draft of the main body of the final report
-% Compile: pdflatex interim_report_2.tex (twice for cross-refs)
 \documentclass[11pt,a4paper]{article}
 
 \usepackage[utf8]{inputenc}
@@ -44,10 +42,8 @@ pipeline with completed and planned work. A link to the public GitHub repository
 included at the end.
 \end{abstract}
 
-% ---------------------------------------------------------------------------
 \section{Introduction and problem statement}
 \label{sec:intro}
-% ---------------------------------------------------------------------------
 
 \paragraph{General topic.}
 The project lies at the intersection of \emph{computer vision} and \emph{numerical
@@ -92,10 +88,8 @@ landmark-based linear reenactment pipeline can go---in geometric fidelity and
 latency---compared to a neural baseline, while keeping the core mathematics
 (least squares, orthogonality, SVD) explicit and reproducible.
 
-% ---------------------------------------------------------------------------
 \section{Related work and possible approaches}
 \label{sec:related}
-% ---------------------------------------------------------------------------
 
 Face reenactment is studied along two broad lines:
 \begin{enumerate}
@@ -124,10 +118,8 @@ data, solved via \textbf{SVD}. This is closest in spirit to explicit geometry tr
 \cite{thies2016face2face} but simplified to a data-driven linear fit. A neural method
 serves as an optional baseline for comparison on the same metrics.
 
-% ---------------------------------------------------------------------------
 \section{Chosen algorithm: outline, pros and cons}
 \label{sec:algorithm}
-% ---------------------------------------------------------------------------
 
 \paragraph{Outline.}
 \begin{enumerate}
@@ -163,10 +155,8 @@ serves as an optional baseline for comparison on the same metrics.
         \cite{siarohin2019first,zakharov2020oneshot}.
 \end{itemize}
 
-% ---------------------------------------------------------------------------
 \section{Theoretical background with emphasis on linear algebra}
 \label{sec:theory}
-% ---------------------------------------------------------------------------
 
 \subsection{Landmarks as vectors and the least-squares problem}
 
@@ -252,10 +242,8 @@ which is expected when landmark noise is high or calibration diversity is insuff
 SVD therefore serves both as a \emph{solver} and as a \emph{diagnostic} tool: it
 reveals which degrees of freedom are well-determined and which require regularisation.
 
-% ---------------------------------------------------------------------------
 \section{Implementation pipeline}
 \label{sec:pipeline}
-% ---------------------------------------------------------------------------
 
 \subsection{Data}
 
@@ -306,13 +294,8 @@ main libraries:
         curves, and a summary table of quantitative results.
 \end{itemize}
 
-% ---------------------------------------------------------------------------
 \section{Preliminary results}
 \label{sec:results}
-% ---------------------------------------------------------------------------
-
-% TODO: Replace placeholder text below with real numbers and figures.
-% Each figure must have: caption, axis labels, and in-text explanation (Bondarenko rule 4).
 
 At this stage the mathematical formulation is complete and verified on a toy example:
 a synthetic set of $k=5$ landmarks with known affine transformation was used to
@@ -322,22 +305,9 @@ produces visually plausible detections, but systematic quantitative evaluation
 (error tables, CED curves, visual comparisons) is underway and will appear in the
 final report.
 
-% When figures are ready, use:
-% \begin{figure}[htbp]
-%   \centering
-%   \includegraphics[width=0.8\textwidth]{fig_example.png}
-%   \caption{Example of reenacted frame. The source portrait (left) is warped to
-%            match the target expression (right). Landmark positions are overlaid
-%            in green.}
-%   \label{fig:example}
-% \end{figure}
-% Remember: refer to each figure in the text, e.g.\ ``Figure~\ref{fig:example}
-% shows that the mouth region follows the target expression accurately.''
 
-% ---------------------------------------------------------------------------
 \section{Conclusion}
 \label{sec:conclusion}
-% ---------------------------------------------------------------------------
 
 This report formulates face reenactment as a least-squares landmark mapping
 problem~\eqref{eq:ls} and shows that the SVD-based pseudoinverse~\eqref{eq:pinv-ls}
@@ -349,14 +319,10 @@ neural baseline may outperform the linear model. The remaining work focuses on
 full integration of the landmark detector and image warping module, systematic
 evaluation on real webcam data, and a side-by-side comparison with a neural method.
 
-% ---------------------------------------------------------------------------
 \section*{Link to code}
-% ---------------------------------------------------------------------------
 
 \noindent\textbf{GitHub repository:}
 \texttt{\url{https://github.com/mykhailobrytan-dot/Project_Linear_Algebra}}
-
-% ---------------------------------------------------------------------------
 
 \begin{thebibliography}{9}
 
