@@ -54,6 +54,13 @@ parameters via SVD, and prints reconstruction error.
 4. **Warping** — Delaunay triangulation + piecewise-affine transforms move the
    source portrait pixels to match the predicted landmarks.
 
+
+## Team's Video Presentations
+
+ - Viktor Syrotiuk - [Watch the video](https://youtu.be/DZFlOIkjiE4)
+ - Mykhailo Brytan - [Watch the video](https://www.youtube.com/watch?v=7KGt8O7A21s)
+ - Yulian Volodymyr Zaiats - [Watch the video](https://www.youtube.com/watch?v=3lpWnrP8UYY&t=1s)
+
 ## Authors
 
 Viktor Syrotiuk, Mykhailo Brytan, Yulian Volodymyr Zaiats
